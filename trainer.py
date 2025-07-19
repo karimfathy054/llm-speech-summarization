@@ -16,6 +16,7 @@ from utils import (
     soft_cross_entropy,
 )
 from writer import MyWriter
+import wandb
 
 
 class Trainer():
@@ -25,6 +26,8 @@ class Trainer():
 
         self.run_name = args.run_name
         self.device = device
+        wandb.init(project=config.project_name,name=args["run_name"],config=self.config)
+
 
         # Set seed.
         torch.cuda.manual_seed(self.config.seed_everything)
@@ -36,7 +39,7 @@ class Trainer():
         os.makedirs(self.checkpoint_save_dir, exist_ok=True)
         os.makedirs(self.log_dir, exist_ok=True)
 
-        self.writer = MyWriter(self.config, self.log_dir)
+        # self.writer = MyWriter(self.config, self.log_dir)
 
         # Set up train and validation dataloaders.
         self.get_dataloaders()
@@ -108,6 +111,7 @@ class Trainer():
         # Load checkpoint if specified.
         if self.args.checkpoint_path:
             self.load_checkpoint(self.args.checkpoint_path)
+        print("done initiating")
 
     def load_checkpoint(self, checkpoint_path):
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
@@ -136,12 +140,19 @@ class Trainer():
             dataset.set_format(type='torch')
             all_train_datasets.append(dataset)
         self.train_dataset = concatenate_datasets(all_train_datasets)
+        
+        columns_to_drop = ['hubert_word_offsets', 'pool_ranges_4']  # One column exists, one doesn't
+
 
         # Load val datasets and combine into one Dataset object.
         all_val_datasets = []
         for dataset_name in self.config.data.val_set:
             dataset_path = os.path.join(self.config.data.base_path, dataset_name)
             dataset = load_from_disk(dataset_path)
+            existing_columns = dataset.column_names
+            invalid_columns_to_drop = [col for col in columns_to_drop if col in existing_columns]
+            if invalid_columns_to_drop:
+                dataset = dataset.remove_columns(invalid_columns_to_drop)
             dataset.set_format(type='torch')
             all_val_datasets.append(dataset)
         self.val_dataset = concatenate_datasets(all_val_datasets)
@@ -217,6 +228,10 @@ class Trainer():
                         audio_attention_mask,
                         batched_text_prompt_sequences,
                         text_attention_mask,
+                        audio_input_post_padding_lens,
+                        text_input_post_padding_lens,
+                        padded_labels_for_audio_input,
+                        padded_labels_for_text_input
                     ) = batch_full_embed_sequence(
                         all_audio_embeds=unpadded_audio_embeds,
                         all_text_input_ids=text_input_ids,
@@ -230,7 +245,7 @@ class Trainer():
                     # Feed inputs_embeds to LLM.
                     llm_audio_output = self.llm(
                         inputs_embeds=batched_audio_prompt_sequences,
-                        labels=response_input_ids,
+                        labels=padded_labels_for_audio_input,
                         output_hidden_states=True,
                         attention_mask=audio_attention_mask,
                     )
@@ -245,13 +260,12 @@ class Trainer():
                     losses["ntp_loss"] = ntp_loss.item()
 
                     if self.use_ld_loss or self.use_fd_loss:
-                        num_labels = response_input_ids[0].shape[0]
-
+                        
                         # Perform forward pass with text inputs for distillation losses.
                         with torch.no_grad():
                             llm_text_output = self.llm(
                                 inputs_embeds=batched_text_prompt_sequences,
-                                labels=response_input_ids,
+                                labels=padded_labels_for_text_input,
                                 output_hidden_states=True,
                                 attention_mask=text_attention_mask,
                             )
@@ -259,10 +273,18 @@ class Trainer():
                         # Logit distillation loss.
                         if self.use_ld_loss:
                             # NOTE: Assumes a batch size of 1.
-                            ld_loss = soft_cross_entropy(
-                                input=llm_audio_output.logits[:, -num_labels:, :],
-                                target=llm_text_output.logits[:, -num_labels:, :].detach(),
-                            )
+                            ld_loss = 0.0
+                            # using loop to address each sample in batch
+                            for i in range(llm_audio_output.logits.shape[0]):
+                                num_labels = response_input_ids[i].shape[0]
+                                audio_shift = num_labels + audio_input_post_padding_lens[i]
+                                text_shift = num_labels + text_input_post_padding_lens[i]
+                                
+                                ld_loss += soft_cross_entropy(
+                                    input = llm_audio_output.logits[i,-audio_shift:,:],
+                                    target = llm_text_output.logits[i, -text_shift:, :].detach() 
+                                )
+                            ld_loss/=llm_audio_output.logits.shape[0]
                             total_loss += self.ld_loss_weight * ld_loss
                             losses["ld_loss"] = ld_loss.item()
 
@@ -270,15 +292,21 @@ class Trainer():
                         # NOTE: Assumes batch size = 1.
                         if self.use_fd_loss:
                             fd_loss = 0.0
-                            for layer_idx in self.fd_loss_connector_layers:
-                                audio_feats = llm_audio_output.hidden_states[layer_idx][
-                                    :, -num_labels:, :
-                                ]
-                                text_feats = llm_text_output.hidden_states[layer_idx][
-                                    :, -num_labels:, :
-                                ]
-                                fd_loss += F.mse_loss(audio_feats, text_feats.detach())
-
+                            # using loop to address each sample in batch
+                            for i in range(llm_audio_output.logits.shape[0]):
+                                num_labels = response_input_ids[i].shape[0]
+                                audio_shift = num_labels + audio_input_post_padding_lens[i]
+                                text_shift = num_labels + text_input_post_padding_lens[i]
+                                for layer_idx in self.fd_loss_connector_layers:
+                                    audio_feats = llm_audio_output.hidden_states[layer_idx][
+                                        i, -audio_shift:, :
+                                    ]
+                                    text_feats = llm_text_output.hidden_states[layer_idx][
+                                        i, -text_shift:, :
+                                    ]
+                                    fd_loss += F.mse_loss(audio_feats, text_feats.detach())
+                            
+                            fd_loss/= llm_audio_output.logits.shape[0]
                             total_loss += self.fd_loss_weight * fd_loss
                             losses["fd_loss"] = fd_loss.item()
 
@@ -295,20 +323,25 @@ class Trainer():
                     scaler.update()
                     self.lr_scheduler.step()
                     self.optimizer.zero_grad()
+                    del padded_audios, padded_audio_embeds, unpadded_audio_embeds, batched_audio_prompt_sequences #deleting to preserve more vram
+                    torch.cuda.empty_cache()
 
                 self.step += 1
 
                 # Logging.
                 if self.step % self.config.log.log_interval == 0:
-                    self.writer.log_training(losses, self.step)
-                    self.writer.log_lr(self.lr_scheduler.get_last_lr()[0], self.step)
-
+                    for loss_type,value in losses.items():
+                        wandb.log({f"train/{loss_type}":value},step=self.step)
+                    wandb.log({"learning_rate":self.lr_scheduler.get_last_lr()[0]},step=self.step)
+                    
                 # Perform validation at interval.
                 if self.step % self.config.log.validation_interval == 0:
                     self.validate(epoch)
 
             # Perform validation at end of epoch.
             self.validate(epoch)
+            wandb.finish()
+            print("training done")
 
     def validate(self, epoch):
         # Validation loop
@@ -338,6 +371,10 @@ class Trainer():
                         _,
                         full_text_prompt_sequence,
                         _,
+                        _,
+                        _,
+                        padded_labels_for_audio_input,
+                        padded_labels_for_text_input
                     ) = batch_full_embed_sequence(
                         all_audio_embeds=audio_embeds,
                         all_text_input_ids=text_input_ids,
@@ -348,14 +385,18 @@ class Trainer():
                         process_text=True,
                     )
 
+                    # # if full_audio_prompt_sequence.shape[1] == 0:
+                    # #     raise ValueError(f"full_audio_prompt_sequence has zero tokens! Shape: {full_audio_prompt_sequence.shape}")
+
+                    
                     # Feed audio and text prompt sequences to LLM.
                     llm_audio_output = self.llm(
                         inputs_embeds=full_audio_prompt_sequence,
-                        labels=response_input_ids[0].unsqueeze(0).to(self.device),
+                        labels=padded_labels_for_audio_input.to(self.device),
                     )
                     llm_text_output = self.llm(
                         inputs_embeds=full_text_prompt_sequence,
-                        labels=response_input_ids[0].unsqueeze(0).to(self.device),
+                        labels=padded_labels_for_text_input.to(self.device),
                     )
 
                     # Next token prediction losses for audio and text sequence inputs.
@@ -399,49 +440,74 @@ class Trainer():
 
             # Log loss in Tensorboard.
             losses = {"ntp_loss": audio_ntp_loss.item()}
-            self.writer.log_validation(losses, self.step)
+            # self.writer.log_validation(losses, self.step)
 
             # Compute perplexity from NLLs.
             audio_nlls.append(audio_ntp_loss)
             text_nlls.append(text_ntp_loss)
 
-        # Log LLM responses in Tensorboard.
-        self.writer.log_audio_text_responses(
-            prompt_audios=prompt_audios,
-            prompt_texts=prompt_texts,
-            audio_responses=llm_audio_responses,
-            text_responses=llm_text_responses,
-            step=self.step,
+        # Create a table for responses
+        response_table = wandb.Table(
+            columns=["Prompt Text", "Audio Response", "Text Response"]
         )
+
+        for prompt_text, audio_response, text_response in zip(
+            prompt_texts, llm_audio_responses, llm_text_responses
+        ):
+            response_table.add_data(
+                prompt_text,
+                audio_response,
+                text_response,
+            )
+
+        # Log the table
+        wandb.log({"validation/responses": response_table,}, step=self.step)
+
+        # Log loss in Tensorboard.
+        total_audio_ntp_loss = torch.stack(audio_nlls).mean()
+        total_text_ntp_loss = torch.stack(text_nlls).mean()
+        wandb.log({f"validation/total_audio_ntp_loss": total_audio_ntp_loss},step=self.step)
+        wandb.log({f"validation/total_text_ntp_loss": total_text_ntp_loss},step=self.step)
 
         # Log perplexity in Tensorboard.
         audio_perplexity = torch.exp(torch.stack(audio_nlls).mean())
         text_perplexity = torch.exp(torch.stack(text_nlls).mean())
-        self.writer.log_validation_perplexity(audio_perplexity, "audio", self.step)
-        self.writer.log_validation_perplexity(text_perplexity, "text", self.step)
+        wandb.log({"validation/audio":audio_perplexity},step=self.step)
+        wandb.log({"validation/text":text_perplexity},step=self.step)
 
         # Save checkpoints.
-        save_path = os.path.join(self.checkpoint_save_dir, f"epoch_{epoch}_step_{self.step}.pt")
-        torch.save(
-            {
-                "audio_encoder": self.audio_encoder.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "lr_scheduler": self.lr_scheduler.state_dict(),
-                "epoch": epoch,
-                "step": self.step,
-            },
-            save_path,
-        )
-        print(f"Saved checkpoint for epoch {epoch} to {save_path}.\n")
+        
+        # NOTE: uncomment the follwing segment and authenticate in colab to save checkpoints in google storage bucket
+        # with tempfile.NamedTemporaryFile() as temp_file:
+        #   torch.save(
+        #       {
+        #           "audio_encoder": self.audio_encoder.state_dict(),
+        #           "optimizer": self.optimizer.state_dict(),
+        #           "lr_scheduler": self.lr_scheduler.state_dict(),
+        #           "epoch": epoch,
+        #           "step": self.step,
+        #       },
+        #       temp_file.name,
+        #   )
+        #   # Define GCS path
+        #   gcs_path = f"{self.checkpoint_save_dir}/epoch_{epoch}_step_{self.step}.pt"
+        #   blob = bucket.blob(gcs_path)
+
+        #   # Upload local file to GCS
+        #   blob.upload_from_filename(temp_file.name)
+
+        #   print(f"Saved checkpoint for epoch {epoch} to gs://{bucket_name}/{gcs_path}\n")
 
     def generate_llm_response(self, inputs_embeds, len_inputs=60):
         with torch.no_grad():
-            # Generate
-            generate_ids = self.llm.generate(
-                input_ids=None,
-                inputs_embeds=inputs_embeds,
-                max_new_tokens=2*len_inputs,
-            )
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                # Generate
+                generate_ids = self.llm.generate(
+                    input_ids=None,
+                    inputs_embeds=inputs_embeds,
+                    max_new_tokens=2*len_inputs,
+                    past_key_values=None,
+                )
 
         response_text = self.tokenizer.batch_decode(
             generate_ids,

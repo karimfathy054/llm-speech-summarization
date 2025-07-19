@@ -38,6 +38,8 @@ class AudioLlamaForCausalLM(LlamaForCausalLM):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        loss_reduction="token_avg",
+        
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -87,38 +89,31 @@ class AudioLlamaForCausalLM(LlamaForCausalLM):
         logits = logits.float()
 
         loss = None
-        # TODO: Currently assumes a batch size of 1. Change to incorporate
-        # sizes > 1.
+        # SOLVED ? : Currently assumes a batch size of 1. Change to incorporate sizes > 1.
         if labels is not None:
             loss = 0.0
-            for sample_logits, sample_labels in zip(logits, labels):
-                # # Shift so that tokens < n predict n
-                # shift_logits = logits[..., :-1, :].contiguous()
-                # shift_labels = labels[..., 1:].contiguous()
+            loss_mask = (labels!=-100)
+            if loss_mask.any():
 
-                sample_logits = sample_logits.unsqueeze(0)
-                sample_labels = sample_labels.unsqueeze(0).to(self.device)
-
-                # Shift so that tokens < n predict n, but only for tokens
+                # Shift so that tokens < n predict n
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+                
+                # using -100 as padding for labels that cover the PROMPT_PREFIX+INPUT_EMBEDS+PROMPT_SUFFIX 
+                # before the response embeds and as padding for the batch at the end of each sample
+                # we can calculate the loss for each label in labels using the logits of the tokens preceeding it 
                 # corresponding to the response portion of the LLM.
-                response_len = sample_labels.shape[1]
-                shift_logits = sample_logits[..., -response_len:-1, :].contiguous()
-
-                # Labels are only provided for the response portion of the LLM in
-                # the first place.
-                shift_labels = sample_labels[..., 1:].contiguous()
-
-                # Flatten the tokens
-                loss_fct = CrossEntropyLoss()
-                shift_logits = shift_logits.view(-1, self.config.vocab_size)
-                shift_labels = shift_labels.view(-1)
-
-                # Enable model parallelism
-                shift_labels = shift_labels.to(shift_logits.device)
-                loss += loss_fct(shift_logits, shift_labels)
-
-            # Manually perform mean reduction for cross entropy loss.
-            loss /= logits.shape[0]
+                if loss_reduction=="token_avg":
+                    loss_fct = CrossEntropyLoss(reduction='mean',ignore_index=-100)
+                elif loss_reduction=="batch_avg":
+                    loss_fct = CrossEntropyLoss(reduction='sum',ignore_index=-100)
+                    
+                loss = loss_fct(shift_logits,shift_labels.to(shift_logits.device))                   
+            else:
+                loss = torch.tensor(0.0,device=logits.device,requires_grad=True)
+                
+            if loss_reduction=="batch_avg":
+                loss/=logits.shape[0]
 
         if not return_dict:
             output = (logits,) + outputs[1:]

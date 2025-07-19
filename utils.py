@@ -128,6 +128,9 @@ def batch_full_embed_sequence(
     # Get embeddings for text prompt.
     unpadded_audio_embed_sequences = []
     unpadded_text_embed_sequences = []
+    padded_audio_response_inputs = []
+    padded_text_response_inputs = []
+    
     for audio_embeds, text_input_ids, response_input_ids in zip(
         all_audio_embeds, all_text_input_ids, all_response_input_ids
     ):
@@ -140,7 +143,15 @@ def batch_full_embed_sequence(
             embed_tokens=embed_tokens,
         )
         unpadded_audio_embed_sequences.append(full_audio_prompt_sequence)
-
+        seq_len = full_audio_prompt_sequence.shape[1]
+        res_len = response_input_ids.shape[0]
+        padding_len = seq_len-res_len
+        # first label is ignored in NTP loss calculation
+        response_input_ids_patched = response_input_ids.clone()
+        response_input_ids_patched[0] = -100
+        # prepadding response for NTP loss calculation
+        labels = F.pad(response_input_ids_patched,(padding_len,0),mode="constant",value=-100)
+        padded_audio_response_inputs.append(labels)
         if process_text:
             # Get full text prompt embedding sequence.
             # HACK: Take elements [1:] to remove start of sentence token.
@@ -153,10 +164,17 @@ def batch_full_embed_sequence(
                 embed_tokens=embed_tokens,
             )
             unpadded_text_embed_sequences.append(full_text_prompt_sequence)
+            seq_len = full_text_prompt_sequence.shape[1]
+            padding_len = seq_len-res_len
+            labels = F.pad(response_input_ids_patched,(padding_len,0),mode="constant",value=-100)
+            padded_text_response_inputs.append(labels)
+            
 
     # Pad audio embedding sequences.
     audio_embed_sequence_lens = [seq.shape[1] for seq in unpadded_audio_embed_sequences]
+    
     audio_max_len = max(audio_embed_sequence_lens)
+    audio_input_post_padding_lens = [audio_max_len-embed_len for embed_len in audio_embed_sequence_lens]
     padded_audio_sequences = torch.cat(
         [
             F.pad(
@@ -166,10 +184,17 @@ def batch_full_embed_sequence(
     )
     audio_attention_mask = construct_attention_mask(audio_embed_sequence_lens)
 
+    padded_labels_for_audio_input = torch.stack([
+        F.pad(labels,(0,audio_max_len-len(labels)),mode="constant",value=-100) for label in padded_audio_response_inputs
+    ])
+    
+    text_input_post_padding_lens = []
+    padded_labels_for_text_input = None
     if process_text:
         # Pad text embedding sequences.
         text_embed_sequence_lens = [seq.shape[1] for seq in unpadded_text_embed_sequences]
         text_max_len = max(text_embed_sequence_lens)
+        text_input_post_padding_lens = [text_max_len-embed_len for embed_len in text_embed_sequence_lens]
         padded_text_sequences = torch.cat(
             [
                 F.pad(
@@ -178,11 +203,14 @@ def batch_full_embed_sequence(
             ]
         )
         text_attention_mask = construct_attention_mask(text_embed_sequence_lens)
+        padded_labels_for_text_input = torch.stack([
+            F.pad(labels,(0,audio_max_len-len(labels)),mode="constant",value=-100) for label in padded_text_response_inputs
+        ])
     else:
         padded_text_sequences = None
         text_attention_mask = None
 
-    return padded_audio_sequences, audio_attention_mask, padded_text_sequences, text_attention_mask
+    return padded_audio_sequences, audio_attention_mask, padded_text_sequences, text_attention_mask ,audio_input_post_padding_lens,text_input_post_padding_lens,padded_labels_for_audio_input,padded_labels_for_text_input
 
 
 def soft_cross_entropy(input, target, reduction="mean"):

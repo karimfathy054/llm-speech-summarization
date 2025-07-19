@@ -1,14 +1,81 @@
+project_name : GRAD_PROJ_COLAB
 seed_everything: 1234
 data:
-  base_path: /home/gridsan/wjkang/data/librispeech_hf
+  base_path: 
   train_set: [
-    librispeech_train.clean.100_preprocessed.hf,
-    librispeech_train.clean.360_preprocessed.hf,
-    librispeech_train.other.500_preprocessed.hf,
+    /kaggle/input/librispeech-clean-360-preprocessed-04/librispeech_train-clean-360_preprocessed/shard_0,
+    /kaggle/input/librispeech-clean-360-preprocessed-04/librispeech_train-clean-360_preprocessed/shard_1,
+    /kaggle/input/librispeech-clean-360-preprocessed-04/librispeech_train-clean-360_preprocessed/shard_2,
+    /kaggle/input/librispeech-clean-360-preprocessed-04/librispeech_train-clean-360_preprocessed/shard_3,
+    /kaggle/input/librispeech-clean-360-preprocessed-04/librispeech_train-clean-360_preprocessed/shard_4,
+    /kaggle/input/librispeech-clean-360-preprocessed-1014/librispeech_clean_360_preprocessed_10:14/shard_10,
+    /kaggle/input/librispeech-clean-360-preprocessed-1014/librispeech_clean_360_preprocessed_10:14/shard_11,
+    /kaggle/input/librispeech-clean-360-preprocessed-1014/librispeech_clean_360_preprocessed_10:14/shard_12,
+    /kaggle/input/librispeech-clean-360-preprocessed-1014/librispeech_clean_360_preprocessed_10:14/shard_13,
+    /kaggle/input/librispeech-clean-360-preprocessed-1014/librispeech_clean_360_preprocessed_10:14/shard_14,
+    /kaggle/input/librispeech-clean-360-preprocessed-2125/librispeech_clean_360_preprocessed_21:26/shard_21,
+    /kaggle/input/librispeech-clean-360-preprocessed-2125/librispeech_clean_360_preprocessed_21:26/shard_22,
+    /kaggle/input/librispeech-clean-360-preprocessed-2125/librispeech_clean_360_preprocessed_21:26/shard_23,
+    /kaggle/input/librispeech-clean-360-preprocessed-2125/librispeech_clean_360_preprocessed_21:26/shard_24,
+    /kaggle/input/librispeech-clean-360-preprocessed-2125/librispeech_clean_360_preprocessed_21:26/shard_25,
+    /kaggle/input/librispeech-clean-360-preprocessed-59/librispeech_train-clean-360_preprocessed/shard_5,
+    /kaggle/input/librispeech-clean-360-preprocessed-59/librispeech_train-clean-360_preprocessed/shard_6,
+    /kaggle/input/librispeech-clean-360-preprocessed-59/librispeech_train-clean-360_preprocessed/shard_7,
+    /kaggle/input/librispeech-clean-360-preprocessed-59/librispeech_train-clean-360_preprocessed/shard_8,
+    /kaggle/input/librispeech-clean-360-preprocessed-59/librispeech_train-clean-360_preprocessed/shard_9,
+    /kaggle/input/librispeech-train-100-clean-preprocessed/librispeech_train_100_clean_preprocessed/shard_0,
+    /kaggle/input/librispeech-train-100-clean-preprocessed/librispeech_train_100_clean_preprocessed/shard_1,
+    /kaggle/input/librispeech-train-100-clean-preprocessed/librispeech_train_100_clean_preprocessed/shard_2,
+    /kaggle/input/librispeech-train-100-clean-preprocessed/librispeech_train_100_clean_preprocessed/shard_3,
+    /kaggle/input/librispeech-train-100-clean-preprocessed/librispeech_train_100_clean_preprocessed/shard_4,
+    /kaggle/input/librispeech-train-100-clean-preprocessed/librispeech_train_100_clean_preprocessed/shard_5,
+    /kaggle/input/librispeech-train-100-clean-preprocessed/librispeech_train_100_clean_preprocessed/shard_6,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_10,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_11,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_12,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_13,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_14,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_15,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_16,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_17,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_18,
+    /kaggle/input/librispeech-train-other-500-preprocessed-1020/librispeech_train_other_500_preprocessed_10:20/shard_19,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_20,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_21,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_22,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_23,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_24,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_25,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_26,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_27,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_28,
+    /kaggle/input/librispeech-train-other-500-preprocessed-20-29/librispeech_train_other_500_preprocessed_20_29/shard_29,
+    /kaggle/input/librispeech-train-other-500-preprocessed-30-37/librispeech_train_other_500_preprocessed/shard_30,
+    /kaggle/input/librispeech-train-other-500-preprocessed-30-37/librispeech_train_other_500_preprocessed/shard_31,
+    /kaggle/input/librispeech-train-other-500-preprocessed-30-37/librispeech_train_other_500_preprocessed/shard_32,
+    /kaggle/input/librispeech-train-other-500-preprocessed-30-37/librispeech_train_other_500_preprocessed/shard_33,
+    /kaggle/input/librispeech-train-other-500-preprocessed-30-37/librispeech_train_other_500_preprocessed/shard_34,
+    /kaggle/input/librispeech-train-other-500-preprocessed-30-37/librispeech_train_other_500_preprocessed/shard_35,
+    /kaggle/input/librispeech-train-other-500-preprocessed-30-37/librispeech_train_other_500_preprocessed/shard_36,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_0,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_1,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_2,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_3,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_4,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_5,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_6,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_7,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_8,
+    /kaggle/input/librispeech-train-other-preprocessed-010/librispeech_train_other_500_preprocessed/shard_9,
+    /root/.cache/kagglehub/datasets/omarmahmoud112/librispeech-clean-360-preprocessed-1520/versions/1/librispeech_clean_360_preprocessed_15:20/shard_15,
+    /root/.cache/kagglehub/datasets/omarmahmoud112/librispeech-clean-360-preprocessed-1520/versions/1/librispeech_clean_360_preprocessed_15:20/shard_16,
+    /root/.cache/kagglehub/datasets/omarmahmoud112/librispeech-clean-360-preprocessed-1520/versions/1/librispeech_clean_360_preprocessed_15:20/shard_17,
+    /root/.cache/kagglehub/datasets/omarmahmoud112/librispeech-clean-360-preprocessed-1520/versions/1/librispeech_clean_360_preprocessed_15:20/shard_18,
+    /root/.cache/kagglehub/datasets/omarmahmoud112/librispeech-clean-360-preprocessed-1520/versions/1/librispeech_clean_360_preprocessed_15:20/shard_19,
   ]
   val_set: [
-    librispeech_validation.clean_preprocessed.hf,
-    librispeech_validation.other_preprocessed.hf,
+    /root/.cache/kagglehub/datasets/omarmahmoud112/librispeech-div-clean-preprocessed/versions/4/librispeech_div_other_preprocessed.hf,
+    /root/.cache/kagglehub/datasets/omarmahmoud112/librispeech-div-clean-preprocessed/versions/4/librispeech_hf/librispeech_div-clean_preprocessed.hf,
   ]
 model:
   audio_encoder:
@@ -25,11 +92,11 @@ train:
   num_gpus: 1
   num_workers: 4
   optimizer:
-    lr: 5e-5
+    lr: 1e-5
     beta1: 0.9
     beta2: 0.999
-  batch_size: 1
-  grad_accum_interval: 16
+  batch_size: 8
+  grad_accum_interval: 1
   epochs: 10
   use_ld_loss: True  ###
   use_fd_loss: True  ###
@@ -38,8 +105,8 @@ train:
   fd_loss_weight: 1.0
   fd_loss_connector_layers: [0, 5, 11, 17, 23]  ###
 log:
-  checkpoint_dir: checkpoints
+  checkpoint_dir: checkpoints/lr_1e-5
   log_dir: logs
   log_interval: 10
-  validation_interval: 30000
+  validation_interval: 10000
   num_generate_samples: 5

@@ -4,7 +4,7 @@ import torch
 from omegaconf import OmegaConf
 
 from trainer import Trainer
-
+import wandb
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -22,6 +22,8 @@ if __name__ == '__main__':
     print(f"\nUsing device: {device}")
 
     config = OmegaConf.load(args.config)
+    
+    wandb.login(key="")
     trainer = Trainer(args, config, device)
 
     trainer.train()
