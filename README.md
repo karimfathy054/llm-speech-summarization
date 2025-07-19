@@ -91,8 +91,24 @@ We also acknowledge the following resources and repositories:
 
 - 🎧 [facebook/hubert-large-ls960-ft](https://huggingface.co/facebook/hubert-large-ls960-ft) for the initial weights of the HuBERT-based audio encoder
 
+
 - https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py for the core model structure of the LLM in ```model/audio_llama.py```
 
+## 🎓 Graduation Project Team
+This project was developed as part of our graduation thesis in the Computer Engineering program. We extend our gratitude to our supervisors and everyone who supported us during this work.
 
+Team Members:
+
+👨‍💻 [Omar Mahmoud](https://github.com/OmarMahmoud11)
+
+👨‍💻 [Omar Tarek](https://github.com/OmarTarekAbdelWahab)
+
+👨‍💻 [Mohamed Amr](https://github.com/MohamedAmr982)
+
+👨‍💻 [Marshelino Maged](https://github.com/marshelino-maged)
+
+👨‍💻 [Abdelrahman Elsayed](https://github.com/AbdelrahmanElsayed2024)
+
+👨‍💻 [Karim Fathy](https://github.com/karimfathy054)
 
 
